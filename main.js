@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         标题批量导出DBLP的BibTeX
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.6.1
 // @description  在网页左下角生成一个按钮，从dblp中获取选定文本的BibTeX并复制到剪贴板。支持批量获取，支持从剪贴板读取，支持随时下载，支持导出URL和CSV。
 // @author       shandianchengzi
 // @match        *://*/*
@@ -12,6 +12,7 @@
 // @grant        GM_setValue
 // @grant        GM_addStyle
 // @license      GPL-3.0
+// @noframes
 // ==/UserScript==
 
 // Inject Custom CSS
