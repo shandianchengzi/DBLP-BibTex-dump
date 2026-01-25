@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         标题批量导出DBLP的BibTeX
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      3.0
 // @description  在网页左下角生成一个按钮，从dblp中获取选定文本的BibTeX并复制到剪贴板。支持批量获取，支持从剪贴板读取，支持随时下载，支持导出URL和CSV。白名单模式。
 // @author       shandianchengzi
 // @match        *://*/*
@@ -138,6 +138,59 @@ const css = `
     margin: 15px 0; font-family: monospace; resize: vertical; box-sizing: border-box; outline: none;
 }
 #dblp-whitelist-textarea:focus { border-color: #007BFF; }
+
+/* Citation Format Modal */
+#dblp-citation-modal {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9); color: white; padding: 25px;
+    border-radius: 10px; z-index: 100003; display: none;
+    width: 450px; max-width: 90%; text-align: left;
+    backdrop-filter: blur(5px); box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+}
+#dblp-citation-modal h3 {
+    font-size: 18px; font-weight: bold; margin-bottom: 15px; text-align: center;
+}
+#dblp-citation-presets {
+    display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;
+}
+.dblp-citation-preset {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px; padding: 10px; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 10px;
+}
+.dblp-citation-preset:hover { background: rgba(255,255,255,0.2); }
+.dblp-citation-preset.active {
+    background: rgba(0, 123, 255, 0.3); border-color: #007BFF;
+}
+.dblp-citation-preset input[type="radio"] {
+    margin: 0; cursor: pointer;
+}
+.dblp-citation-preset-label {
+    flex: 1; font-size: 13px;
+}
+.dblp-citation-preset-example {
+    font-size: 11px; color: #aaa; font-family: monospace;
+}
+#dblp-citation-custom-section {
+    border-top: 1px solid rgba(255,255,255,0.2); padding-top: 15px; margin-top: 10px;
+}
+#dblp-citation-custom-input {
+    width: 100%; background: rgba(255,255,255,0.1); color: #fff;
+    border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 10px;
+    margin: 10px 0; font-family: monospace; box-sizing: border-box; outline: none;
+}
+#dblp-citation-custom-input:focus { border-color: #007BFF; }
+#dblp-citation-help {
+    font-size: 11px; color: #aaa; line-height: 1.6; margin-bottom: 15px;
+}
+#dblp-citation-preview {
+    background: rgba(0, 123, 255, 0.2); border-radius: 6px; padding: 10px;
+    margin: 10px 0; font-family: monospace; font-size: 12px; text-align: center;
+    min-height: 40px; display: flex; align-items: center; justify-content: center;
+}
+.dblp-modal-buttons {
+    display: flex; justify-content: center; gap: 10px; margin-top: 15px;
+}
 `;
 
 if (typeof GM_addStyle !== 'undefined') {
@@ -201,7 +254,19 @@ var headers = {
     domain_added: "域名已添加到白名单",
     domain_already_exists: "该域名已在白名单中",
     feature_disabled: "功能已全局禁用",
-    feature_enabled: "功能已启用"
+    feature_enabled: "功能已启用",
+    // 引用格式相关提示
+    menu_citation_config: "设置引用标志格式",
+    citation_title: "引用标志格式设置",
+    citation_preset_default: "默认（DBLP原始）",
+    citation_preset_author_year: "作者姓氏 + 年份",
+    citation_preset_firstword_year_author: "题目首词 + 年份 + 作者首词",
+    citation_preset_author_year_title: "作者 + 年份 + 题目关键词",
+    citation_custom_label: "自定义模板",
+    citation_help: "可用占位符：{firstAuthor}第一作者姓氏, {year}年份, {firstWord}标题首词, {titleWords:N}标题前N词",
+    citation_preview: "预览：",
+    citation_saved: "引用格式已保存",
+    citation_example_title: "示例：Deep Learning for NLP (2024, 作者: Smith, Johnson)"
   };
 
   if (!lang.startsWith('zh')) {
@@ -230,7 +295,19 @@ var headers = {
           domain_added: "Domain added to whitelist",
           domain_already_exists: "Domain already in whitelist",
           feature_disabled: "Feature disabled globally",
-          feature_enabled: "Feature enabled"
+          feature_enabled: "Feature enabled",
+          // 引用格式相关提示
+          menu_citation_config: "Configure Citation Key Format",
+          citation_title: "Citation Key Format Settings",
+          citation_preset_default: "Default (DBLP Original)",
+          citation_preset_author_year: "Author Surname + Year",
+          citation_preset_firstword_year_author: "First Word + Year + First Author",
+          citation_preset_author_year_title: "Author + Year + Title Keyword",
+          citation_custom_label: "Custom Template",
+          citation_help: "Available placeholders: {firstAuthor} first author surname, {year} year, {firstWord} first title word, {titleWords:N} first N title words",
+          citation_preview: "Preview: ",
+          citation_saved: "Citation format saved",
+          citation_example_title: "Example: Deep Learning for NLP (2024, Authors: Smith, Johnson)"
       };
   }
 
@@ -265,6 +342,142 @@ var headers = {
 
   function setGlobalEnabled(enabled) {
     GM_setValue('dblp_enabled', enabled);
+  }
+
+  // --- 引用格式配置管理函数 ---
+
+  // 预设格式定义
+  const CITATION_PRESETS = {
+    default: {
+      name: 'citation_preset_default',
+      template: null, // null表示保持原始格式
+      example: 'DBLP:conf/aaai/Smith2024'
+    },
+    author_year: {
+      name: 'citation_preset_author_year',
+      template: '{firstAuthor}{year}',
+      example: 'Smith2024'
+    },
+    firstword_year_author: {
+      name: 'citation_preset_firstword_year_author',
+      template: '{firstWord}{year}{firstAuthor}',
+      example: 'Deep2024Smith'
+    },
+    author_year_title: {
+      name: 'citation_preset_author_year_title',
+      template: '{firstAuthor}{year}{firstWord}',
+      example: 'Smith2024Deep'
+    }
+  };
+
+  function getCitationFormat() {
+    return GM_getValue('dblp_citation_format', 'default');
+  }
+
+  function getCustomTemplate() {
+    return GM_getValue('dblp_custom_template', '{firstAuthor}{year}');
+  }
+
+  function saveCitationFormat(format) {
+    GM_setValue('dblp_citation_format', format);
+  }
+
+  function saveCustomTemplate(template) {
+    GM_setValue('dblp_custom_template', template);
+  }
+
+  // 解析BibTeX字段并生成新的引用标志
+  function generateCitationKey(bibtex) {
+    if (!bibtex || bibtex === "None") return null;
+
+    const format = getCitationFormat();
+    let template = null;
+
+    if (format === 'custom') {
+      template = getCustomTemplate();
+    } else if (CITATION_PRESETS[format]) {
+      template = CITATION_PRESETS[format].template;
+    }
+
+    // 如果模板为null，保持原始格式
+    if (!template) return null;
+
+    // 提取BibTeX字段
+    const author = extractBibField(bibtex, "author");
+    const title = extractBibField(bibtex, "title");
+    const year = extractBibField(bibtex, "year");
+
+    // 解析作者
+    let firstAuthorSurname = "Unknown";
+    if (author && author !== "None") {
+      // 作者格式通常是 "Surname, Name" 或 "Surname, Name and Surname, Name"
+      const firstAuthor = author.split(' and ')[0].trim();
+      const surnameMatch = firstAuthor.match(/^([A-Za-z]+),/);
+      if (surnameMatch) {
+        firstAuthorSurname = surnameMatch[1];
+      } else {
+        // 如果没有逗号，取整个第一个部分
+        firstAuthorSurname = firstAuthor.split(' ')[0];
+      }
+    }
+
+    // 解析年份
+    let citationYear = year && year !== "None" ? year : "n.d.";
+
+    // 解析标题首词
+    let firstWord = "Unknown";
+    if (title && title !== "None") {
+      // 移除特殊字符，取第一个单词
+      const cleanTitle = title.replace(/[{}]/g, '').trim();
+      const words = cleanTitle.split(/\s+/);
+      if (words.length > 0) {
+        firstWord = words[0].replace(/[^a-zA-Z0-9]/g, '');
+      }
+    }
+
+    // 替换模板占位符
+    let newKey = template
+      .replace(/{firstAuthor}/g, firstAuthorSurname)
+      .replace(/{year}/g, citationYear)
+      .replace(/{firstWord}/g, firstWord);
+
+    // 处理 {titleWords:N} 占位符
+    const titleWordsMatch = template.match(/{titleWords:(\d+)}/g);
+    if (titleWordsMatch && title && title !== "None") {
+      const cleanTitle = title.replace(/[{}]/g, '').trim();
+      const words = cleanTitle.split(/\s+/).map(w => w.replace(/[^a-zA-Z0-9]/g, '')).filter(w => w);
+
+      titleWordsMatch.forEach(match => {
+        const n = parseInt(match.match(/{titleWords:(\d+)}/)[1]);
+        const selectedWords = words.slice(0, Math.min(n, words.length));
+        const wordsStr = selectedWords.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join('');
+        newKey = newKey.replace(match, wordsStr);
+      });
+    }
+
+    // 确保首字母大写，其余小写（对于作者和首词）
+    newKey = newKey.replace(/(^|[^a-zA-Z])([a-z])/g, (_, prefix, letter) => {
+      return prefix + letter.toUpperCase();
+    });
+
+    return newKey;
+  }
+
+  // 替换BibTeX中的引用标志
+  function rewriteBibTeXCitationKey(bibtex) {
+    if (!bibtex || bibtex === "None") return bibtex;
+
+    const newKey = generateCitationKey(bibtex);
+    if (!newKey) return bibtex;
+
+    // 匹配 @type {oldKey, 替换为 @type {newKey,
+    const citeKeyMatch = bibtex.match(/^@\w+\s*\{([^,]+),/);
+    if (citeKeyMatch) {
+      const oldKey = citeKeyMatch[1];
+      return bibtex.replace(/^@\w+\s*\{([^,]+),/, `@${citeKeyMatch[0].match(/^@(\w+)/)[1]} {${newKey},`);
+    }
+
+    return bibtex;
   }
 
   // --- UI Elements Creation ---
@@ -319,6 +532,125 @@ var headers = {
   `;
   document.body.appendChild(whitelistModal);
 
+  // 5. Citation Format Modal (引用格式配置面板)
+  const citationModal = document.createElement('div');
+  citationModal.id = 'dblp-citation-modal';
+  citationModal.innerHTML = `
+      <h3>${lang_hint.citation_title}</h3>
+
+      <div id="dblp-citation-presets"></div>
+
+      <div id="dblp-citation-custom-section" style="display:none;">
+          <div style="font-size:14px; font-weight:bold; margin-bottom:5px;">${lang_hint.citation_custom_label}</div>
+          <input type="text" id="dblp-citation-custom-input" placeholder="{firstAuthor}{year}" />
+          <div id="dblp-citation-help">${lang_hint.citation_help}</div>
+      </div>
+
+      <div id="dblp-citation-preview">${lang_hint.citation_preview}</div>
+
+      <div class="dblp-modal-buttons">
+          <button id="dblp-citation-save" class="dblp-btn" style="background:#28a745; color:white;">Save</button>
+          <button id="dblp-citation-cancel" class="dblp-btn" style="background:#6c757d; color:white;">Cancel</button>
+      </div>
+  `;
+  document.body.appendChild(citationModal);
+
+  // 生成预设选项
+  function renderCitationPresets() {
+      const container = document.getElementById('dblp-citation-presets');
+      container.innerHTML = '';
+
+      const currentFormat = getCitationFormat();
+
+      Object.entries(CITATION_PRESETS).forEach(([key, preset]) => {
+          const label = lang_hint[preset.name];
+          const div = document.createElement('div');
+          div.className = 'dblp-citation-preset' + (currentFormat === key ? ' active' : '');
+          div.innerHTML = `
+              <input type="radio" name="citation-preset" value="${key}" ${currentFormat === key ? 'checked' : ''} />
+              <div style="flex:1;">
+                  <div class="dblp-citation-preset-label">${label}</div>
+                  <div class="dblp-citation-preset-example">${preset.example}</div>
+              </div>
+          `;
+          div.onclick = (e) => {
+              if (e.target.type !== 'radio') {
+                  const radio = div.querySelector('input[type="radio"]');
+                  radio.checked = true;
+              }
+              // 更新选中状态
+              document.querySelectorAll('.dblp-citation-preset').forEach(el => el.classList.remove('active'));
+              div.classList.add('active');
+
+              // 显示/隐藏自定义输入框
+              const customSection = document.getElementById('dblp-citation-custom-section');
+              if (key === 'custom') {
+                  customSection.style.display = 'block';
+                  const customInput = document.getElementById('dblp-citation-custom-input');
+                  customInput.value = getCustomTemplate();
+                  updateCitationPreview(customInput.value);
+              } else {
+                  customSection.style.display = 'none';
+                  updateCitationPreview(preset.template);
+              }
+          };
+          container.appendChild(div);
+      });
+
+      // 添加自定义选项
+      const customDiv = document.createElement('div');
+      customDiv.className = 'dblp-citation-preset' + (currentFormat === 'custom' ? ' active' : '');
+      customDiv.innerHTML = `
+          <input type="radio" name="citation-preset" value="custom" ${currentFormat === 'custom' ? 'checked' : ''} />
+          <div style="flex:1;">
+              <div class="dblp-citation-preset-label">${lang_hint.citation_custom_label}</div>
+          </div>
+      `;
+      customDiv.onclick = (e) => {
+          if (e.target.type !== 'radio') {
+              const radio = customDiv.querySelector('input[type="radio"]');
+              radio.checked = true;
+          }
+          document.querySelectorAll('.dblp-citation-preset').forEach(el => el.classList.remove('active'));
+          customDiv.classList.add('active');
+
+          const customSection = document.getElementById('dblp-citation-custom-section');
+          customSection.style.display = 'block';
+          const customInput = document.getElementById('dblp-citation-custom-input');
+          customInput.value = getCustomTemplate();
+          updateCitationPreview(customInput.value);
+      };
+      container.appendChild(customDiv);
+
+      // 如果当前是自定义格式，显示自定义输入框
+      if (currentFormat === 'custom') {
+          document.getElementById('dblp-citation-custom-section').style.display = 'block';
+          document.getElementById('dblp-citation-custom-input').value = getCustomTemplate();
+      }
+  }
+
+  // 更新预览
+  function updateCitationPreview(template) {
+      const previewEl = document.getElementById('dblp-citation-preview');
+
+      if (!template) {
+          previewEl.textContent = lang_hint.citation_preview + ' ' + lang_hint.citation_preset_default;
+          return;
+      }
+
+      // 生成示例
+      const example = template
+          .replace(/{firstAuthor}/g, 'Smith')
+          .replace(/{year}/g, '2024')
+          .replace(/{firstWord}/g, 'Deep')
+          .replace(/{titleWords:(\d+)}/g, (_, n) => {
+              const words = ['Deep', 'Learning', 'for', 'NLP'];
+              return words.slice(0, parseInt(n)).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+          });
+
+      previewEl.textContent = lang_hint.citation_preview + ' ' + example;
+  }
+
   // 面板按钮事件
   const whitelistTextarea = document.getElementById('dblp-whitelist-textarea');
 
@@ -333,6 +665,38 @@ var headers = {
 
   document.getElementById('dblp-whitelist-cancel').onclick = () => {
       whitelistModal.style.display = 'none';
+  };
+
+  // 引用格式模态框按钮事件
+  const customInput = document.getElementById('dblp-citation-custom-input');
+
+  customInput.addEventListener('input', (e) => {
+      updateCitationPreview(e.target.value);
+  });
+
+  document.getElementById('dblp-citation-save').onclick = () => {
+      // 获取选中的格式
+      const selectedPreset = document.querySelector('input[name="citation-preset"]:checked');
+      if (!selectedPreset) return;
+
+      const format = selectedPreset.value;
+
+      if (format === 'custom') {
+          const template = customInput.value.trim();
+          if (!template) {
+              Toast(lang.startsWith('zh') ? '请输入自定义模板' : 'Please enter custom template');
+              return;
+          }
+          saveCustomTemplate(template);
+      }
+
+      saveCitationFormat(format);
+      Toast(lang_hint.citation_saved);
+      citationModal.style.display = 'none';
+  };
+
+  document.getElementById('dblp-citation-cancel').onclick = () => {
+      citationModal.style.display = 'none';
   };
 
   // --- Logic Variables ---
@@ -405,7 +769,10 @@ var headers = {
                 url: bibUrl,
                 headers: headers,
                 onload: function(bibResponse) {
-                    callback(bibResponse.responseText);
+                    let bibtex = bibResponse.responseText;
+                    // 应用引用格式转换
+                    bibtex = rewriteBibTeXCitationKey(bibtex);
+                    callback(bibtex);
                 },
                 onerror: function() {
                     if(!silent) Toast("Error fetching bib file");
@@ -624,7 +991,13 @@ var headers = {
     updateButtonVisibility();
   });
 
-  // 3. 全局禁用/启用（动态切换）
+  // 3. 设置引用标志格式
+  GM_registerMenuCommand(lang_hint.menu_citation_config, function() {
+    renderCitationPresets();
+    citationModal.style.display = 'block';
+  });
+
+  // 4. 全局禁用/启用（动态切换）
   let disableMenuId = null;
 
   function updateDisableMenu() {
