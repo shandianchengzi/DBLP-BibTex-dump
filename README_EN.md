@@ -2,6 +2,8 @@
 
 Generate a button at the bottom left of the webpage to fetch the BibTeX of the selected text from DBLP and copy it to the clipboard. Supports batch fetching, reading from clipboard, downloading at any time, exporting URL and CSV.
 
+![Get BibTeX Button](imgs/页面左下角的获取BibTex按钮.png)
+
 ## Download
 
 [https://greasyfork.org/en/scripts/522825-dblp-bibtex-dump](https://greasyfork.org/en/scripts/522825-dblp-bibtex-dump)
@@ -10,13 +12,17 @@ Generate a button at the bottom left of the webpage to fetch the BibTeX of the s
 
 ### Core Functions
 - **One-Click Fetch** - Select paper titles to automatically get BibTeX citations
+  ![Single Entry to Clipboard](imgs/单个数据直接上剪切板.png)
 - **Batch Processing** - Select multiple titles at once for automatic batch extraction
+  ![Batch Extraction and Export](imgs/批量提取并导出特定格式.png)
 - **Smart Clipboard** - Automatically reads clipboard content when no text is selected
 - **Multiple Export Formats** - Support for .bib files, CSV spreadsheets, and URL lists
 
 ### Advanced Features
 - **Custom Citation Format** - Support multiple citation key templates (author+year, title keyword, etc.) with customizable placeholders
+  ![Custom Citation Format](imgs/自定义引用格式.png)
 - **Whitelist Mode** - Only show button on specified websites to avoid interference
+  ![Configure Site Whitelist](imgs/设置站点白名单.png)
 - **Global Toggle** - One-click disable/enable functionality
 - **Real-time Preview** - Display current progress and status during batch processing
 
