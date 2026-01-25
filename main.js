@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         标题批量导出DBLP的BibTeX
 // @namespace    http://tampermonkey.net/
-// @version      3.0
+// @version      3.1
 // @description  在网页左下角生成一个按钮，从dblp中获取选定文本的BibTeX并复制到剪贴板。支持批量获取，支持从剪贴板读取，支持随时下载，支持导出URL和CSV。白名单模式。
 // @author       shandianchengzi
 // @match        *://*/*
@@ -25,6 +25,7 @@ const css = `
     background-color: rgba(0, 0, 0, 0.85);
     color: white;
     padding: 25px;
+    padding-top: 35px;
     border-radius: 10px;
     z-index: 100000;
     text-align: center;
@@ -39,7 +40,6 @@ const css = `
 #dblp-batch-title {
     font-size: 18px;
     font-weight: bold;
-    margin-bottom: 15px;
     color: #fff;
 }
 
@@ -53,7 +53,153 @@ const css = `
     max-width: 450px;
     margin-left: auto;
     margin-right: auto;
-    min-height: 20px;
+    min-height: 5px;
+}
+
+#dblp-failed-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    display: none;
+    text-align: left;
+}
+
+#dblp-failed-title {
+    font-size: 13px;
+    color: #ff6b6b;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+#dblp-failed-textarea {
+    width: 100%;
+    min-height: 80px;
+    max-height: 150px;
+    background: rgba(255,255,255,0.1);
+    color: #ffcccc;
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 6px;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 12px;
+    resize: vertical;
+    box-sizing: border-box;
+    outline: none;
+}
+
+#dblp-failed-textarea:focus {
+    border-color: rgba(255,107,107,0.6);
+    background: rgba(255,255,255,0.15);
+}
+
+#dblp-close-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(128, 128, 128, 0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #ddd;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0;
+}
+
+#dblp-close-btn:hover {
+    background: rgba(128, 128, 128, 0.5);
+    color: white;
+    transform: scale(1.1);
+}
+
+#dblp-failed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+#dblp-retry-btn {
+    background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+#dblp-retry-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(66, 133, 244, 0.4);
+}
+
+#dblp-success-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    display: none;
+    text-align: left;
+}
+
+#dblp-success-title {
+    font-size: 13px;
+    color: #51cf66;
+    font-weight: bold;
+}
+
+#dblp-success-textarea {
+    width: 100%;
+    min-height: 100px;
+    max-height: 200px;
+    background: rgba(255,255,255,0.1);
+    color: #ccffdd;
+    border: 1px solid rgba(81, 207, 102, 0.3);
+    border-radius: 6px;
+    padding: 10px;
+    font-family: monospace;
+    font-size: 12px;
+    resize: vertical;
+    box-sizing: border-box;
+    outline: none;
+}
+
+#dblp-success-textarea:focus {
+    border-color: rgba(81, 207, 102, 0.6);
+    background: rgba(255,255,255,0.15);
+}
+
+#dblp-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.dblp-copy-icon {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    color: #ddd;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.dblp-copy-icon:hover {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    transform: scale(1.05);
 }
 
 .dblp-btn {
@@ -122,6 +268,51 @@ const css = `
     max-height: 100px;
     overflow-y: auto;
     font-size: 12px;
+}
+
+/* Scholar Confirm Modal */
+#dblp-scholar-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    z-index: 100004;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    text-align: center;
+    max-width: 500px;
+    width: 90%;
+    display: none;
+    backdrop-filter: blur(5px);
+}
+#dblp-scholar-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+#dblp-scholar-list {
+    background: rgba(255,255,255,0.1);
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    text-align: left;
+    font-size: 12px;
+    font-family: monospace;
+}
+#dblp-scholar-item {
+    padding: 4px 8px;
+    margin: 2px 0;
+    background: rgba(255,255,255,0.05);
+    border-radius: 4px;
+    word-break: break-all;
+}
+#dblp-scholar-item:hover {
+    background: rgba(255,255,255,0.15);
 }
 
 /* Whitelist Modal */
@@ -236,7 +427,7 @@ var headers = {
     fetching_one: "正在获取...",
     done_copy: "已完成并复制！",
     batch_title: (cur, total) => `批量提取中: ${cur} / ${total}`,
-    batch_done_title: "批量提取完成",
+    batch_done_title: (total) => `批量提取完成（${total}条）`,
     download_btn: "下载 BibTeX (.bib)",
     copy_urls_btn: "仅复制 URL",
     csv_btn: "下载表格 (.csv)",
@@ -244,6 +435,13 @@ var headers = {
     current_prefix: "正在搜索: ",
     default_btn: "获取 BibTeX",
     urls_copied: "URLs 已复制到剪贴板！",
+    // 失败提示
+    failed_summary: (failed) => `以下是获取失败的（${failed} 条），可以去谷歌学术搜索：`,
+    success_summary: (total) => `完整提取结果（${total} 条）：`,
+    copied_to_clipboard: "已复制到剪贴板",
+    scholar_confirm_title: "确认打开以下 Google Scholar 搜索？",
+    scholar_confirm_open: "打开",
+    scholar_confirm_cancel: "取消",
     // 白名单相关提示
     menu_whitelist_config: "设置站点白名单",
     menu_add_current: "将本域名添加到白名单",
@@ -277,7 +475,7 @@ var headers = {
           fetching_one: "Fetching...",
           done_copy: "Done & Copied!",
           batch_title: (cur, total) => `Processing: ${cur} / ${total}`,
-          batch_done_title: "Batch Complete",
+          batch_done_title: (total) => `Batch Complete (${total} items)`,
           download_btn: "Download BibTeX",
           copy_urls_btn: "Copy URLs",
           csv_btn: "Download CSV",
@@ -285,6 +483,13 @@ var headers = {
           current_prefix: "Searching: ",
           default_btn: "Get BibTeX",
           urls_copied: "URLs copied to clipboard!",
+          // 失败提示
+          failed_summary: (failed) => `Failed items (${failed}), you can search on Google Scholar:`,
+          success_summary: (total) => `Complete results (${total} items):`,
+          copied_to_clipboard: "Copied to clipboard",
+          scholar_confirm_title: "Open the following Google Scholar searches?",
+          scholar_confirm_open: "Open",
+          scholar_confirm_cancel: "Cancel",
           // 白名单相关提示
           menu_whitelist_config: "Configure Site Whitelist",
           menu_add_current: "Add Current Domain to Whitelist",
@@ -492,15 +697,32 @@ var headers = {
   const overlay = document.createElement('div');
   overlay.id = 'dblp-batch-overlay';
   overlay.innerHTML = `
+      <button id="dblp-close-btn">&times;</button>
       <div id="dblp-batch-title"></div>
       <div id="dblp-batch-current"></div>
+      <div id="dblp-success-section">
+          <div id="dblp-result-header">
+              <div id="dblp-success-title"></div>
+              <button id="dblp-copy-success" class="dblp-copy-icon">📋</button>
+          </div>
+          <textarea id="dblp-success-textarea" readonly></textarea>
+      </div>
+      <div id="dblp-failed-section">
+          <div id="dblp-result-header">
+              <div id="dblp-failed-header">
+                  <div id="dblp-failed-title"></div>
+                  <button id="dblp-retry-btn">Scholar</button>
+              </div>
+              <button id="dblp-copy-failed" class="dblp-copy-icon">📋</button>
+          </div>
+          <textarea id="dblp-failed-textarea"></textarea>
+      </div>
       <div style="display:flex; flex-direction:column; gap:10px; align-items:center;">
         <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
              <button id="dblp-btn-download" class="dblp-btn">${lang_hint.download_btn}</button>
              <button id="dblp-btn-csv" class="dblp-btn">${lang_hint.csv_btn}</button>
              <button id="dblp-btn-copy-urls" class="dblp-btn">${lang_hint.copy_urls_btn}</button>
         </div>
-        <button id="dblp-btn-close" class="dblp-btn" style="display:none; width: 120px;">${lang_hint.close_btn}</button>
       </div>
   `;
   document.body.appendChild(overlay);
@@ -517,6 +739,19 @@ var headers = {
       </div>
   `;
   document.body.appendChild(confirmModal);
+
+  // 3.1. Scholar Confirm Modal
+  const scholarModal = document.createElement('div');
+  scholarModal.id = 'dblp-scholar-modal';
+  scholarModal.innerHTML = `
+      <div id="dblp-scholar-title">${lang_hint.scholar_confirm_title}</div>
+      <div id="dblp-scholar-list"></div>
+      <div style="display:flex; justify-content:center; gap:10px; margin-top:15px;">
+          <button id="dblp-scholar-confirm" class="dblp-btn" style="background:#28a745; color:white;">${lang_hint.scholar_confirm_open}</button>
+          <button id="dblp-scholar-cancel" class="dblp-btn" style="background:#6c757d; color:white;">${lang_hint.scholar_confirm_cancel}</button>
+      </div>
+  `;
+  document.body.appendChild(scholarModal);
 
   // 4. Whitelist Modal (新增面板)
   const whitelistModal = document.createElement('div');
@@ -706,6 +941,13 @@ var headers = {
 
   // --- Helper Functions ---
 
+  // 清理中文字符和中文标点符号
+  function cleanChineseText(text) {
+    if (!text) return text;
+    // 移除中文字符、中文标点符号和全角字符
+    return text.replace(/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/g, '').trim();
+  }
+
   function extractBibField(bibtex, fieldName) {
     if (!bibtex || bibtex === "None") return "None";
 
@@ -794,7 +1036,8 @@ var headers = {
   const downloadBtn = document.getElementById('dblp-btn-download');
   const csvBtn = document.getElementById('dblp-btn-csv');
   const copyUrlsBtn = document.getElementById('dblp-btn-copy-urls');
-  const closeBtn = document.getElementById('dblp-btn-close');
+  const closeBtn = document.getElementById('dblp-close-btn');
+  const retryBtn = document.getElementById('dblp-retry-btn');
 
   // Helper to get valid results so far
   function getResultsSoFar() {
@@ -856,6 +1099,66 @@ var headers = {
       isBatchProcessing = false;
   };
 
+  // Scholar重试按钮
+  retryBtn.onclick = () => {
+      const failedTextarea = document.getElementById('dblp-failed-textarea');
+      const failedText = failedTextarea.value.trim();
+      if (!failedText) {
+          Toast(lang.startsWith('zh') ? '没有失败的项目' : 'No failed items');
+          return;
+      }
+
+      const failedLines = failedText.split('\n').map(s => s.trim()).filter(s => s);
+      if (failedLines.length === 0) return;
+
+      // 生成搜索URL列表
+      const searchUrls = failedLines.map(line => ({
+          query: line,
+          url: `https://scholar.google.com/scholar?q=${encodeURIComponent(line)}`
+      }));
+
+      // 显示确认对话框
+      const scholarList = document.getElementById('dblp-scholar-list');
+      scholarList.innerHTML = searchUrls.map((item, idx) =>
+          `<div class="dblp-scholar-item">${idx + 1}. ${item.url}</div>`
+      ).join('');
+
+      scholarModal.style.display = 'block';
+
+      // 确认按钮
+      document.getElementById('dblp-scholar-confirm').onclick = () => {
+          scholarModal.style.display = 'none';
+
+          // 打开多个标签页
+          searchUrls.forEach(item => {
+              window.open(item.url, '_blank');
+          });
+      };
+
+      // 取消按钮
+      document.getElementById('dblp-scholar-cancel').onclick = () => {
+          scholarModal.style.display = 'none';
+      };
+  };
+
+  // 复制成功结果按钮
+  document.getElementById('dblp-copy-success').onclick = () => {
+      const successTextarea = document.getElementById('dblp-success-textarea');
+      const content = successTextarea.value;
+      if (!content) return;
+      GM_setClipboard(content);
+      Toast(lang_hint.copied_to_clipboard);
+  };
+
+  // 复制失败结果按钮
+  document.getElementById('dblp-copy-failed').onclick = () => {
+      const failedTextarea = document.getElementById('dblp-failed-textarea');
+      const content = failedTextarea.value;
+      if (!content) return;
+      GM_setClipboard(content);
+      Toast(lang_hint.copied_to_clipboard);
+  };
+
   // Clipboard Confirm Logic
   function askClipboard(text) {
       return new Promise((resolve) => {
@@ -905,7 +1208,7 @@ var headers = {
 
     if (!selection) return;
 
-    const lines = selection.split(/[\r\n]+/).map(s => s.trim()).filter(s => s);
+    const lines = selection.split(/[\r\n]+/).map(s => cleanChineseText(s.trim())).filter(s => s);
 
     if (lines.length === 0) return;
 
@@ -930,6 +1233,10 @@ var headers = {
         overlay.style.display = 'block';
         closeBtn.style.display = 'none';
 
+        // 隐藏结果区域，重置状态
+        document.getElementById('dblp-success-section').style.display = 'none';
+        document.getElementById('dblp-failed-section').style.display = 'none';
+
         titleEl.innerText = lang_hint.batch_title(0, lines.length);
         currentEl.innerText = "Initializing...";
 
@@ -949,13 +1256,47 @@ var headers = {
 
                     if (completedCount === lines.length) {
                         isBatchProcessing = false;
-                        titleEl.innerText = lang_hint.batch_done_title;
+                        titleEl.innerText = lang_hint.batch_done_title(lines.length);
                         currentEl.innerText = "";
-                        closeBtn.style.display = 'inline-block';
+                        closeBtn.style.display = 'flex';
 
-                        const finalContent = batchResults.map(r => r === "None" ? "% Failed" : r).join('\n\n');
-                        GM_setClipboard(finalContent);
-                        Toast(lang_hint.done_copy);
+                        // 分离成功和失败的结果
+                        const successResults = [];
+                        const failedLines = [];
+
+                        batchLines.forEach((line, idx) => {
+                            if (batchResults[idx] === "None") {
+                                failedLines.push(line);
+                            } else {
+                                successResults.push(batchResults[idx]);
+                            }
+                        });
+
+                        // 显示成功结果
+                        const successSection = document.getElementById('dblp-success-section');
+                        const successTextarea = document.getElementById('dblp-success-textarea');
+                        const successTitle = document.getElementById('dblp-success-title');
+
+                        if (successResults.length > 0) {
+                            successSection.style.display = 'block';
+                            successTextarea.value = successResults.join('\n\n');
+                            successTitle.innerText = lang_hint.success_summary(successResults.length);
+                        } else {
+                            successSection.style.display = 'none';
+                        }
+
+                        // 显示失败结果
+                        const failedSection = document.getElementById('dblp-failed-section');
+                        const failedTextarea = document.getElementById('dblp-failed-textarea');
+                        const failedTitle = document.getElementById('dblp-failed-title');
+
+                        if (failedLines.length > 0) {
+                            failedSection.style.display = 'block';
+                            failedTextarea.value = failedLines.join('\n');
+                            failedTitle.innerText = lang_hint.failed_summary(failedLines.length);
+                        } else {
+                            failedSection.style.display = 'none';
+                        }
                     }
                 });
             }, index * 800);
