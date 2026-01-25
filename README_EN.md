@@ -21,6 +21,11 @@ Generate a button at the bottom left of the webpage to fetch the BibTeX of the s
 ### Advanced Features
 - **Custom Citation Format** - Support multiple citation key templates (author+year, title keyword, etc.) with customizable placeholders
   ![Custom Citation Format](imgs/自定义引用格式.png)
+- **Batch Result Visualization** - Separate display for successful and failed results, clear at a glance
+  - Successful results: Complete BibTeX content, one-click copy
+  - Failed results: Original search terms, editable for retry or direct Scholar search
+- **Google Scholar Integration** - One-click open Google Scholar search for failed items, supports batch processing
+- **Smart Text Cleaning** - Automatically removes Chinese characters and punctuation to ensure accurate DBLP search
 - **Whitelist Mode** - Only show button on specified websites to avoid interference
   ![Configure Site Whitelist](imgs/设置站点白名单.png)
 - **Global Toggle** - One-click disable/enable functionality
@@ -46,7 +51,24 @@ For more usage tips and feature demonstrations, check out the blog post:
 
 ## Version History
 
-### v3.0 (Latest)
+### v3.1 (Latest)
+- ✨ **New**: Visual batch result interface
+  - Successful and failed results displayed separately for easy review
+  - Successful results: Complete BibTeX content (read-only)
+  - Failed results: Original search terms (editable, convenient for retry)
+- ✨ **New**: Google Scholar search integration
+  - Failed items can be searched directly with "Scholar" button, opens Google Scholar search
+  - Support batch opening multiple search tabs
+  - Smart confirmation dialog, preview URLs to be opened
+- ✨ **New**: Enhanced copy functionality
+  - Independent copy buttons for success and failed sections
+  - Icon+text design, more prominent and user-friendly
+- ✨ **New**: UI improvements
+  - Round close button in top-right corner, saves interface space
+  - Automatic Chinese text cleaning, removes Chinese characters and punctuation to avoid DBLP search interference
+  - Display processing progress and result statistics (e.g., "Batch Complete (10 items)")
+
+### v3.0
 - ✨ **New**: Custom citation key format feature
   - 4 preset formats (default, author+year, first word+year+author, author+year+title keyword)
   - Custom template support with free placeholder combination
