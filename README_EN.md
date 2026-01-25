@@ -16,14 +16,11 @@ Generate a button at the bottom left of the webpage to fetch the BibTeX of the s
 - **Batch Processing** - Select multiple titles at once for automatic batch extraction
   ![Batch Extraction and Export](imgs/批量提取并导出特定格式.png)
 - **Smart Clipboard** - Automatically reads clipboard content when no text is selected
-- **Multiple Export Formats** - Support for .bib files, CSV spreadsheets, and URL lists
+- **Export Anytime** - Supports downloading .bib files, exporting CSV tables, and copying URL lists during the export process
 
 ### Advanced Features
 - **Custom Citation Format** - Support multiple citation key templates (author+year, title keyword, etc.) with customizable placeholders
   ![Custom Citation Format](imgs/自定义引用格式.png)
-- **Batch Result Visualization** - Separate display for successful and failed results, clear at a glance
-  - Successful results: Complete BibTeX content, one-click copy
-  - Failed results: Original search terms, editable for retry or direct Scholar search
 - **Google Scholar Integration** - One-click open Google Scholar search for failed items, supports batch processing
 - **Smart Text Cleaning** - Automatically removes Chinese characters and punctuation to ensure accurate DBLP search
 - **Whitelist Mode** - Only show button on specified websites to avoid interference
